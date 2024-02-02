@@ -1,0 +1,11 @@
+{
+  "params":
+  {
+    "local_server": "True",
+    "local_URI": "mysql+pymysql://root:@localhost/tech_blogs",
+    "production_URI": "mysql+pymysql://root:@localhost/tech_blogs",
+    "fb_url": "https://www.facebook.com/yammoooooooooo",
+    "git_url": "https://github.com/yamaankhan20",
+    "site_title": "Flask"
+  }
+}
