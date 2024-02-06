@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import json
@@ -8,6 +8,9 @@ with open('config.json', 'r') as c:
     params = json.load(c)["params"]
 
 app = Flask(__name__)
+
+app.secret_key = "Your_secret_string"
+
 
 # app.config.update(
 #     MAIL_SERVER = "smtp.gmail.com",
@@ -96,6 +99,23 @@ def post_single(post_slug):
 
     formatted_date = post.date.strftime("%B %d, %Y")
     return render_template('single-post.html', post=post, formatted_date=formatted_date, param=params, year=year)
+
+
+
+@app.route('/dashboard', methods=['GET','POST'])
+def login():
+
+    if('user' in session and session['user'] == params['admin']):
+        return render_template('dashboard.html', param=params, year=year)
+
+    if(request.method == "POST"):
+        username = request.form.get('email')
+        password = request.form.get('password')
+        if(username == params['admin'] and password == params['admin_password']):
+            session['user'] = username
+            return render_template('dashboard.html', param=params, year=year)
+    return render_template('login.html', param=params, year=year)
+
 
 
 
