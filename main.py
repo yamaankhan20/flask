@@ -1,13 +1,23 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import json
-from flask_mail import Mail
+# from flask_mail import Mail
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+# from werkzeug.security import generate_password_hash
+
+all = session['user'], current_user
 
 with open('config.json', 'r') as c:
     params = json.load(c)["params"]
 
 app = Flask(__name__)
+app.secret_key = "Your_secret_string"
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+
 
 # app.config.update(
 #     MAIL_SERVER = "smtp.gmail.com",
@@ -31,7 +41,6 @@ today = datetime.today()
 year = today.year
 
 class Contact_form(db.Model):
-
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
     email = db.Column(db.String(30), nullable=False)
@@ -39,9 +48,7 @@ class Contact_form(db.Model):
     message = db.Column(db.String(100), nullable=False)
     date = db.Column(db.String(30), nullable=False)
 
-
 class All_posts(db.Model):
-
     id = db.Column(db.Integer, primary_key=True)
     post_name = db.Column(db.String(50), nullable=False)
     post_content = db.Column(db.String(130), nullable=False)
@@ -49,10 +56,53 @@ class All_posts(db.Model):
     slug = db.Column(db.String(25), nullable=False)
     img_file = db.Column(db.String(15), nullable=False)
 
+class User(UserMixin):
+    def __init__(self, id):
+        self.id = id
+def authenticate_user(username, password):
+    # Replace this with your actual authentication logic
+    if username == 'admin' and password == 'Admin123':
+        return User(1)
+    else:
+        return None
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User(user_id)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        # Check credentials and authenticate user
+        user = authenticate_user(request.form['email'], request.form['password'])
+        if user:
+            login_user(user)
+            return render_template('dashboard.html', param=params, year=year)
+        else:
+            return render_template('login.html', error='Invalid credentials',param=params, year=year)
+    else:
+        return render_template('login.html', param=params, year=year,)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return render_template('index.html', param=params, year=year,)
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    return render_template('dashboard.html', param=params, year=year,)
+
 
 @app.route("/")
 def home():
-    return render_template('index.html', param=params, year = year)
+    post_data = All_posts.query.filter_by().all()
+    formatted_posts = []
+    for post in post_data:
+        formatted_date = post.date.strftime("%B %d, %Y")
+        formatted_posts.append((post, formatted_date))
+    return render_template('index.html', param=params, year=year, post=formatted_posts[0:2])  #formatted_posts[0:2] is used for post per page
 
 
 @app.route('/about')
@@ -84,11 +134,23 @@ def contact_us():
 
     return render_template('contact.html', param=params, year = year)
 
-@app.route('/post/<string:post_slug>', methods = ['GET'])
+@app.route('/post/<string:post_slug>', methods=['GET'])
 def post_single(post_slug):
+    post = All_posts.query.filter_by(slug=post_slug).first()
 
-    post = All_posts.query.filter_by(slug = post_slug).first()
-    return render_template('single-post.html', post= post, param=params, year = year)
+    if not post:
+        return render_template('404.html', param=params, year=year), 404
+
+    formatted_date = post.date.strftime("%B %d, %Y")
+    return render_template('single-post.html', post=post, formatted_date=formatted_date, param=params, year=year)
+
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html', param=params, year=year), 404
+
+
 
 
 app.run(debug=True)
