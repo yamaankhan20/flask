@@ -27,3 +27,17 @@ window.addEventListener('DOMContentLoaded', () => {
         scrollPos = currentTop;
     });
 })
+
+
+
+jQuery(document).ready(function() {
+    jQuery('.form-outline .form-control').on('focus input', function() {
+        jQuery(this).closest('.form-outline').addClass('active'); // Add the 'active' class to the closest 'p' element
+    });
+
+    jQuery('.form-outline .form-control').blur(function() {
+        if (jQuery(this).val() === '') {
+            jQuery(this).closest('.form-outline').removeClass('active'); // Remove the 'active' class from the closest 'p' element
+        }
+    });
+});

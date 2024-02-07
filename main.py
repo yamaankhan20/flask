@@ -1,12 +1,15 @@
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, session, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import json
 # from flask_mail import Mail
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-# from werkzeug.security import generate_password_hash
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField, EmailField, validators
+from wtforms.validators import InputRequired, Length, ValidationError, Email, DataRequired
+from flask_bcrypt import Bcrypt
 
-all = session['user'], current_user
+
 
 with open('config.json', 'r') as c:
     params = json.load(c)["params"]
@@ -16,6 +19,10 @@ app.secret_key = "Your_secret_string"
 
 login_manager = LoginManager()
 login_manager.init_app(app)
+login_manager.login_view="login"
+
+
+bycrpt  = Bcrypt(app)
 
 
 
@@ -40,6 +47,11 @@ db = SQLAlchemy(app)
 today = datetime.today()
 year = today.year
 
+@login_manager.user_loader
+def load_user(user_id):
+    return All_users.query.get(int(user_id))
+
+
 class Contact_form(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
@@ -56,38 +68,73 @@ class All_posts(db.Model):
     slug = db.Column(db.String(25), nullable=False)
     img_file = db.Column(db.String(15), nullable=False)
 
-class User(UserMixin):
-    def __init__(self, id):
-        self.id = id
+class All_users(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(40), nullable=False, unique=True)
+    password = db.Column(db.String(255), nullable=False)
+    date = db.Column(db.String(30), nullable=False)
+
+class RegisterationFrom(FlaskForm):
+    name = StringField(validators=[InputRequired(), Length(
+        min= 1, max=40)], render_kw = {"class":"form-control"})
+    email = StringField('Email', validators=[DataRequired(), InputRequired(),  Email()], render_kw = {"class":"form-control"})
+    password = PasswordField(validators=[InputRequired(), Length(
+        min= 5, max=225)], render_kw = {"class":"form-control"})
+    submit = SubmitField("Register", render_kw = {"class":"btn btn-primary btn-lg"})
+
+    def validate_user(self, email):
+        existing_email = All_users.query.filter_by(email = email.data).first()
+        if existing_email:
+            print("error")
+
+class LoginFrom(FlaskForm):
+    email = StringField(validators=[InputRequired(), Length(
+        min= 1, max=40)], render_kw = {"class":"form-control mb-3", "placeholder":"Email"})
+    password = PasswordField(validators=[InputRequired(), Length(
+        min= 5, max=225)], render_kw = {"class":"form-control", "placeholder":"Password"})
+    submit = SubmitField("Login", render_kw = {"class":"btn btn-primary btn-lg"})
+
+
+
+
 def authenticate_user(username, password):
     # Replace this with your actual authentication logic
     if username == 'admin' and password == 'Admin123':
-        return User(1)
+        return All_users(1)
     else:
         return None
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User(user_id)
+
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    form = RegisterationFrom()
+    if form.validate_on_submit():
+        password_hashed = bycrpt.generate_password_hash(form.password.data)
+        new_user = All_users( name= form.name.data, email = form.email.data, password = password_hashed, date=datetime.now())
+        db.session.add(new_user)
+        db.session.commit()
+        return redirect(url_for("login"))
+    return render_template('register.html', param= params, year = year, form=form)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        # Check credentials and authenticate user
-        user = authenticate_user(request.form['email'], request.form['password'])
+    form = LoginFrom()
+    if form.validate_on_submit():
+        user = All_users.query.filter_by(email = form.email.data).first()
         if user:
-            login_user(user)
-            return render_template('dashboard.html', param=params, year=year)
-        else:
-            return render_template('login.html', error='Invalid credentials',param=params, year=year)
-    else:
-        return render_template('login.html', param=params, year=year,)
+            if bycrpt.check_password_hash(user.password, form.password.data):
+                login_user(user)
+                return redirect(url_for('dashboard'))
+
+    return render_template('login.html', param=params, year=year, form= form)
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    return render_template('index.html', param=params, year=year,)
+    return redirect(url_for('home'))
 
 @app.route('/dashboard')
 @login_required
