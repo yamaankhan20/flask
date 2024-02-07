@@ -6,6 +6,8 @@
     "production_URI": "mysql+pymysql://root:@localhost/tech_blogs",
     "fb_url": "https://www.facebook.com/yammoooooooooo",
     "git_url": "https://github.com/yamaankhan20",
-    "site_title": "Flask"
+    "site_title": "Flask",
+    "admin": "admin",
+    "admin_password": "Admin123"
   }
 }
