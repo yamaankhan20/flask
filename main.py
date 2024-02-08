@@ -5,10 +5,9 @@ import json
 # from flask_mail import Mail
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, EmailField, validators
-from wtforms.validators import InputRequired, Length, ValidationError, Email, DataRequired
+from wtforms import StringField, PasswordField, SubmitField, EmailField, validators, BooleanField
+from wtforms.validators import InputRequired, Length, ValidationError, Email, DataRequired, EqualTo
 from flask_bcrypt import Bcrypt
-
 
 
 with open('config.json', 'r') as c:
@@ -17,6 +16,8 @@ with open('config.json', 'r') as c:
 app = Flask(__name__)
 app.secret_key = "Your_secret_string"
 
+
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view="login"
@@ -24,16 +25,6 @@ login_manager.login_view="login"
 
 bycrpt  = Bcrypt(app)
 
-
-
-# app.config.update(
-#     MAIL_SERVER = "smtp.gmail.com",
-#     MAIL_PORT = 465,
-#     MAIL_USE_SSL = True,
-#     MAIL_USERNAME = params['gmail_ID'],
-#     MAIL_PASSWORD = params['gmail_password']
-# )
-# mail = Mail(app)
 
 local_server = True
 if(local_server):
@@ -76,17 +67,17 @@ class All_users(db.Model, UserMixin):
     date = db.Column(db.String(30), nullable=False)
 
 class RegisterationFrom(FlaskForm):
-    name = StringField(validators=[InputRequired(), Length(
-        min= 1, max=40)], render_kw = {"class":"form-control"})
-    email = StringField('Email', validators=[DataRequired(), InputRequired(),  Email()], render_kw = {"class":"form-control"})
-    password = PasswordField(validators=[InputRequired(), Length(
-        min= 5, max=225)], render_kw = {"class":"form-control"})
-    submit = SubmitField("Register", render_kw = {"class":"btn btn-primary btn-lg"})
+    name = StringField(validators=[InputRequired(), Length(min=1, max=40)], render_kw={"class": "form-control"})
+    email = StringField('Email', validators=[DataRequired(), InputRequired(), Email()], render_kw={"class": "form-control"})
+    password = PasswordField("password",validators=[InputRequired(), EqualTo('confirm_password', message='Passwords Must Match!'), Length(min=5, max=225)], render_kw={"class": "form-control"})
+    confirm_password = PasswordField("Comfirm Password",validators=[InputRequired() ,Length(min=5, max=225)], render_kw={"class": "form-control"})
+    submit = SubmitField("Register", render_kw={"class": "btn btn-primary btn-lg"})
 
-    def validate_user(self, email):
-        existing_email = All_users.query.filter_by(email = email.data).first()
+    def validate_email(self, email):
+        existing_email = All_users.query.filter_by(email=email.data).first()
         if existing_email:
-            print("error")
+            flash('Email already registered')
+            raise ValidationError('Email already registered')
 
 class LoginFrom(FlaskForm):
     email = StringField(validators=[InputRequired(), Length(
@@ -94,16 +85,6 @@ class LoginFrom(FlaskForm):
     password = PasswordField(validators=[InputRequired(), Length(
         min= 5, max=225)], render_kw = {"class":"form-control", "placeholder":"Password"})
     submit = SubmitField("Login", render_kw = {"class":"btn btn-primary btn-lg"})
-
-
-
-
-def authenticate_user(username, password):
-    # Replace this with your actual authentication logic
-    if username == 'admin' and password == 'Admin123':
-        return All_users(1)
-    else:
-        return None
 
 
 @app.route("/register", methods=['GET', 'POST'])
@@ -115,6 +96,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         return redirect(url_for("login"))
+
     return render_template('register.html', param= params, year = year, form=form)
 
 
@@ -126,8 +108,12 @@ def login():
         if user:
             if bycrpt.check_password_hash(user.password, form.password.data):
                 login_user(user)
+                flash("login successfully!!!")
                 return redirect(url_for('dashboard'))
-
+            else:
+                flash("Wrong Password try again")
+        else:
+            flash("User Doesn't Exists!!")
     return render_template('login.html', param=params, year=year, form= form)
 
 @app.route('/logout')
@@ -139,7 +125,12 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', param=params, year=year,)
+    get_users = All_users.query.filter_by().all()
+    formatted_posts = []
+    for post in get_users:
+        formatted_date = post.date.strftime("%B %d, %Y %H:%M:%S")
+        formatted_posts.append((post, formatted_date))
+    return render_template('dashboard.html', param=params, year=year, get_users=get_users, formatted_date= formatted_date)
 
 
 @app.route("/")

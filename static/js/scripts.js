@@ -41,3 +41,11 @@ jQuery(document).ready(function() {
         }
     });
 });
+
+jQuery(window).on("load", function() {
+    jQuery('.form-outline .form-control').each(function() {
+        if (jQuery(this).val()) {
+            jQuery(this).closest('.form-outline').addClass('active');
+        }
+    });
+});
